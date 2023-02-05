@@ -1,5 +1,3 @@
-def do():
-    print("hola")
 
 class Balance:
 
@@ -57,8 +55,3 @@ class Balance:
     def __getLiquid(self,assets):
 
         self.__liquid = list(filter(lambda x: x['asset'] == 'USDT',assets))[0]
-
-
-        # totalBalance = [(float(symbol['free'])+float(symbol['locked']))*float(bid[symbol['asset']+"USDT"]['bidPrice'])
-        #                       for symbol in assets]
-        # totalBalance = sum(totalBalance) + totalLiquid

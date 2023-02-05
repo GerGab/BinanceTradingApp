@@ -3,6 +3,7 @@ from binance.client import Client
 #my modules import
 from .Balance.Balance import Balance
 from .Orders.SellOrder import SellOrder
+from .Orders.BuyOrder import BuyOrder
 
 class PortfolioManager:
 
@@ -15,9 +16,10 @@ class PortfolioManager:
         self.__TradingManager = config['tradingManager']
         self.__RiskManager = config['riskManager']
         self.__MarketManager = config['marketManager']
-        self.__whatsNewOnMarket()
         self.__Connect()
-        self.__myBalance = self.whatsMyBalance()
+        self.__whatsMyBalance()
+        self.__whatsNewOnMarket(*[asset['symbol']for asset in self.__myBalance['inTokens']])
+        
 
     def __Connect(self):
 
@@ -32,62 +34,48 @@ class PortfolioManager:
     def operateInMarket(self,**kws):
 
         '''
-            Main Function --> checks every day if there are any news on the market}
+            Main Function --> checks every day if there are any news on the market
             and creates Orders.
         '''
+        self.__whatsMyBalance()
         # ask whats new in market.
-        # dfs = self.__MarketManager.retrieveMarketGraph(**{"coins":self.__symbolDict.keys(),
-        #                                                     "timeframe": 365})
+        dfs = self.__MarketManager.retrieveMarketGraph(**{"coins":self.__symbolDict.keys(),"timeframe": 365})
         #ask tradingManager if a trade must take place
-        #trade = self.__TradingManager.applyStrategy(**dfs) # Falta enviar dfs
-        trade = {
-                "buy": [
-                    "LTCUSDT"
-                ],
-                "sell": [
-                    "ETHUSDT",
-                    "BTCUSDT"
-                ]
-                }
-        
+        trade = self.__TradingManager.applyStrategy(**dfs)
+        print('Trading actions : {}'.format(trade))
         #place sell orders according to portfolio
-        if len(trade['sell']) > 0:
-            symbols = [
+        symbols = [
+            symbol 
+            for symbol
+            in trade['sell']
+            if len(list(filter(lambda x: x['symbol']==symbol,self.__myBalance['inTokens'])))
+        ]
+        self.__placeSellOrders(*symbols)
+        if len(symbols) > 0:
+            pass
+            
+        #check if orders where completed
+        # still pending: future idea to implement a class in new childprocess
+        symbols = [
                 symbol 
                 for symbol
-                in trade['sell']
-                if len(list(filter(lambda x: x['symbol']==symbol,self.__myBalance['inTokens'])))
+                in trade['buy']
+                if not len(list(filter(lambda x: x['symbol']==symbol,self.__myBalance['inTokens'])))
             ]
-            print(symbols)
-            bids = self.__MarketManager.retrieveBidAsk(*trade['sell'])
-            for symbol in symbols:
-                order = SellOrder(**{"symbol":symbol,
-                                    "quantity":list(filter(lambda x: x['symbol'] == symbol,self.__myBalance['inTokens']))[0]['freeTokens'],
-                                    "price":bids[symbol]['bidPrice'],
-                                    "tokenFilters": self.__symbolDict[symbol]
-                                    })
+        if len(symbols)>0:
+        #create buyOrders
+            self.__placeBuyOrders(*symbols,**dfs)
+        #check for order status
+        orders = self.__whatAreMyOrdersStatus()
+        return trade
 
-        #ask RiskManager what amount to invest
-        #check if orders where completed
-        #check for available amount
-        #place buy order only on new assets
-
-        #data = self.__MarketManager.retrieveSymbolParameters(*kws['coins'])
-        data = trade
-        return data
-
-    def __whatsNewOnMarket(self):
+    def __whatsNewOnMarket(self,*extraAssets):
 
         # interact with tradingManager
-        self.__symbolDict = self.__MarketManager.retrieveAllAvailableSymbols(self.__maxAssets)
+        self.__symbolDict = self.__MarketManager.retrieveAllAvailableSymbols(self.__maxAssets,*extraAssets)
 
-    def __whatsTheRiskOf(self,coinPairs):
 
-        #for loop trhough all coinPairs
-        #interact with the riskManager
-        pass
-
-    def whatsMyBalance(self):
+    def __whatsMyBalance(self):
 
         #check account free amount, balance,etc
         assets = self.__whichAssetsInPortfolio()
@@ -96,7 +84,7 @@ class PortfolioManager:
         myBalance.setBids(**bids)
         balance = myBalance.balance()
         del myBalance
-        return balance
+        self.__myBalance = balance
 
     def __whichAssetsInPortfolio(self):
 
@@ -110,26 +98,73 @@ class PortfolioManager:
     def __whatAreMyOrdersStatus(self,persist = False):
 
         #verify that there are no pending orders,
-        # if persist == True it waits 
-        pass
+        orders = self.__Connection.get_open_orders()
+        return orders
+        
 
-    def __placeBuyOrders(self,*orders):
+    def __placeBuyOrders(self,*symbols,**dfs):
 
-        #orders must be an array of coinPair objects
-        pass
+        #ask RiskManager what amount to invest
+        risks = self.__RiskManager.assesRisk(*symbols,**dfs)
+        #get bid prices
+        asks = self.__MarketManager.retrieveBidAsk(*symbols)
+        #check for available amount
+        total = self.__myBalance
+        free = float(total['liquid']['free'])
+        total = float(total['totalBalance'])
+        #place buy order only on new assets
+        for symbol in symbols:
+            amount = total*risks[symbol]['multiplier'] # in USDT
+            if free>float(self.__symbolDict[symbol]['minNotional']) and free > amount:
 
-    def __placeSellOrders(self,persist = True,allowMovement = True,awaitTime = 3,*coinPairs):
+                order = BuyOrder(**{
+                    "symbol":symbol,
+                    "amount":amount,
+                    "price":asks[symbol]['askPrice'],
+                    "tokenFilters": self.__symbolDict[symbol]
+                })
+                order.send(self.__Connection)
+                del order
+                free -=amount
+        
+
+    def __placeSellOrders(self,*symbols):
 
         #place a sell order on *coinPairs
-        #persist default = True, will loop until orders confirm closed
-        #allowMovement default = True, after 'awaitTime' seconds will delete the order if no confirmed and
-        #   ask for a new reference price and place a new order
-        pass
+        bids = self.__MarketManager.retrieveBidAsk(*symbols)
+        for symbol in symbols:
+            value = list(filter(lambda x: x['symbol'] == symbol,self.__myBalance['inTokens']))[0]['freeUSDT']
+            if float(value) > float(self.__symbolDict[symbol]['minNotional']):
+                quantity = list(filter(lambda x: x['symbol'] == symbol,self.__myBalance['inTokens']))[0]['freeTokens']
+                order = SellOrder(**{"symbol":symbol,
+                                    "quantity":quantity,
+                                    "price":bids[symbol]['bidPrice'],
+                                    "tokenFilters": self.__symbolDict[symbol]
+                                    })
+                order.send(self.__Connection)
+                del order
 
     def adjustParameters(self,**kws):
 
         #adjust parameters to market
         pass
+
+    def emergencySellof(self,*symbols):
+
+        self.__whatsMyBalance()
+        if len(symbols)==0:
+            symbols = [token['symbol'] for token in self.__myBalance['inTokens']]
+        self.__placeSellOrders(*symbols)
+
+    def getMyBalance(self):
+
+        self.__whatsMyBalance()
+        print(self.__myBalance)
+        return self.__myBalance
+
+    def getTradingAssets(self):
+
+        return self.__symbolDict
 
     def addOrAvoidSymbols(self,*args):
 
@@ -142,11 +177,9 @@ class PortfolioManager:
                 raise Exception('No symbols to be removed where introduced.')
             else:
                 for arg in args:
-                    print(arg)
                     del self.__symbolDict[arg]
         except Exception as e:
-        
-            print(e)
+            raise Exception('Error on addOrRemoveSymbols --> {}'.format(e))
 
     def __checkConnection(self):
 

@@ -1,6 +1,6 @@
 from ..tradingApp.PortfolioManager import myPortfolioManager
 
-def marketGraph(**params):
+def checkMarket(**params):
 
     data = myPortfolioManager.operateInMarket(**params)
 
@@ -13,6 +13,18 @@ def editSymbols(**params):
 
 def myBalance(**params):
 
-    balance = myPortfolioManager.whatsMyBalance()
+    balance = myPortfolioManager.getMyBalance()
     
     return balance
+
+def sellOff(*params):
+
+    myPortfolioManager.emergencySellof(*params)
+
+    return 'ok'
+
+def tradingAssets():
+
+    assets = myPortfolioManager.getTradingAssets()
+
+    return assets

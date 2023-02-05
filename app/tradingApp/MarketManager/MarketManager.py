@@ -70,7 +70,7 @@ class MarketManager:
 
         return data
 
-    def retrieveAllAvailableSymbols(self,maxAssets):
+    def retrieveAllAvailableSymbols(self,maxAssets,*extraAssets):
 
         '''
             Gathers TOP cryptocurrencies according their market Cap.
@@ -78,10 +78,10 @@ class MarketManager:
         try:
             symbols = GetMarketCap(maxAssets)
         except Exception as e:
-            print(e)
             symbols = []
-
-
+            raise Exception('error on marketCap recovery: {}'.format(e))
+        finally:
+            symbols += extraAssets
         self.__checkConnection()
         data = self.__Connection.get_exchange_info()['symbols']
         data = list(filter(lambda x: x['symbol'] in symbols and x['status'] == 'TRADING' ,data))
