@@ -7,7 +7,7 @@ class SellOrder:
         self.__formatOrder(**symbol)
 
     def __formatOrder(self,**kws):
-
+        
         self.__fullfilment = {
             "symbol":kws['symbol'],
             "side" : SIDE_SELL,

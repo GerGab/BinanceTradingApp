@@ -14,7 +14,7 @@ def editSymbols(**params):
 def myBalance(**params):
 
     balance = myPortfolioManager.getMyBalance()
-    
+    print(balance)
     return balance
 
 def sellOff(*params):

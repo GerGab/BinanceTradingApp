@@ -1,19 +1,22 @@
 import os
 from dotenv import load_dotenv  # intall with pip install python-dotenv
+import datetime
 
 load_dotenv()  # loads all .env file variables
 
 class Config:
-    SERVER_NAME = '127.0.0.1:8080'
-    DEBUG = True
-    #DATABASE_PATH = "app/database/contact_book.db"
-    #ENCRYPT_DB = True
-    #STATIC_FOLDER = "views/static/"
+    JWT_SECRET_KEY = os.environ.get("JWT_SECRET")
+    JWT_ACCESS_TOKEN_EXPIRES = datetime.timedelta(minutes=int(os.environ.get("JWT_EXPIRE_TIME")))
 
 class BinanceClient:
 
     SECRET_KEY = os.environ.get('SECRET_KEY')
     API_KEY = os.environ.get('API_KEY')
+
+class adminUser:
+
+    ADMIN = os.environ.get('ADMIN')
+    PASSWORD = os.environ.get('PASSWORD')
 
 class SmtpConfig:
     MAIL_SERVER = 'smtp.gmail.com'

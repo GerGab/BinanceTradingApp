@@ -1,9 +1,15 @@
 # dependencies import
 from binance.client import Client
+import logging
+from flask import jsonify
+import time
 #my modules import
 from .Balance.Balance import Balance
 from .Orders.SellOrder import SellOrder
 from .Orders.BuyOrder import BuyOrder
+from ...models.exceptions import BinanceServerError,BadRequestError
+
+log = logging.getLogger('app.binance')
 
 class PortfolioManager:
 
@@ -25,6 +31,7 @@ class PortfolioManager:
 
         #Connect with binance server
         self.__Connection = Client(self.__APIKey,self.__APISecret)
+        
 
     def Parameters(self):
 
@@ -42,7 +49,7 @@ class PortfolioManager:
         dfs = self.__MarketManager.retrieveMarketGraph(**{"coins":self.__symbolDict.keys(),"timeframe": 365})
         #ask tradingManager if a trade must take place
         trade = self.__TradingManager.applyStrategy(**dfs)
-        print('Trading actions : {}'.format(trade))
+        log.info(trade)
         #place sell orders according to portfolio
         symbols = [
             symbol 
@@ -50,10 +57,8 @@ class PortfolioManager:
             in trade['sell']
             if len(list(filter(lambda x: x['symbol']==symbol,self.__myBalance['inTokens'])))
         ]
-        self.__placeSellOrders(*symbols)
         if len(symbols) > 0:
-            pass
-            
+            self.__placeSellOrders(*symbols)
         #check if orders where completed
         # still pending: future idea to implement a class in new childprocess
         symbols = [
@@ -67,6 +72,7 @@ class PortfolioManager:
             self.__placeBuyOrders(*symbols,**dfs)
         #check for order status
         orders = self.__whatAreMyOrdersStatus()
+        log.info(orders)
         return trade
 
     def __whatsNewOnMarket(self,*extraAssets):
@@ -95,10 +101,15 @@ class PortfolioManager:
         balance = list(filter(lambda x: float(x["free"])>0 or float(x["locked"])>0,balance))
         return balance
 
-    def __whatAreMyOrdersStatus(self,persist = False):
+    def __whatAreMyOrdersStatus(self,persist = False,fallback = 5):
 
         #verify that there are no pending orders,
         orders = self.__Connection.get_open_orders()
+        if persist:
+            while len(orders)>0:
+                time.sleep(fallback*60)
+                orders = self.__Connection.get_open_orders()
+                
         return orders
         
 
@@ -159,7 +170,6 @@ class PortfolioManager:
     def getMyBalance(self):
 
         self.__whatsMyBalance()
-        print(self.__myBalance)
         return self.__myBalance
 
     def getTradingAssets(self):
@@ -174,12 +184,12 @@ class PortfolioManager:
         '''
         try:
             if len(args) == 0:
-                raise Exception('No symbols to be removed where introduced.')
+                raise BadRequestError('No symbols to be removed where introduced.')
             else:
                 for arg in args:
                     del self.__symbolDict[arg]
         except Exception as e:
-            raise Exception('Error on addOrRemoveSymbols --> {}'.format(e))
+            raise BadRequestError('Error on addOrRemoveSymbols --> {}'.format(e))
 
     def __checkConnection(self):
 
@@ -191,10 +201,10 @@ class PortfolioManager:
         try:
             self.__Connection.get_system_status()['status'] != 0
         except Exception as e:
-            print(e)
+            log.warning(e)
         finally:
             try:
                 self.__Connect()
             except Exception as e:
-                print(e)
-                raise Exception('Not possible to reach Binance Server')
+                log.critical(e)
+                raise BinanceServerError('Not possible to reach Binance Server')
