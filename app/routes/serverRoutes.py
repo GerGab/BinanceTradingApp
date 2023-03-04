@@ -18,14 +18,12 @@ def __generate_response(result,msg,**kws) -> Response:
     return jsonify(message | kws)
 
 @serverScope.route('/alive',methods = ['GET'])
-@jwt_required()
 def liveProbe() -> Response:
     Response = __generate_response("success", "imalive")
     Response.status_code = 200
     return Response
 
 @serverScope.route('/ready',methods = ['GET'])
-@jwt_required()
 def readyProbe() -> Response:
     Response = __generate_response("success", "imready")
     Response.status_code = 200
