@@ -2,3 +2,4 @@
 /outproject
 server_binance
 planning.txt
+.dockerignore
