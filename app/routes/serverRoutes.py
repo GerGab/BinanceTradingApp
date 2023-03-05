@@ -7,6 +7,7 @@ from ..controllers.schedulerController import *
 from ..controllers.LoginController import login
 from ..models.exceptions import InternalError
 
+
 serverScope = Blueprint("server", __name__)
 
 #custom message
@@ -52,5 +53,23 @@ def login_route() -> Response:
     password = request.json.get("password",None)
     jwt = login(username,password)
     Response = __generate_response(result="success",msg="access granted", **{"token":jwt})
+    Response.status_code = 200
+    return Response
+
+@serverScope.route('/logs',methods = ['GET'])
+@jwt_required()
+def logs_route() -> Response:
+    with open('./logs/logs.txt','r') as file:
+        data = file.read() #>>> improve
+    Response = __generate_response(result="success",msg="logs retrieved", **{"data":data})
+    Response.status_code = 200
+    return Response
+
+@serverScope.route('/logs',methods = ['DELETE'])
+@jwt_required()
+def logs_del_route() -> Response:
+    with open('./logs/logs.txt','w') as file:
+        file.write("") #>>> improve
+    Response = __generate_response(result="success",msg="logs reinitialized")
     Response.status_code = 200
     return Response

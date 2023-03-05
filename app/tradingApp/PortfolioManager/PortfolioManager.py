@@ -3,10 +3,12 @@ from binance.client import Client
 import logging
 from flask import jsonify
 import time
+from typing import Dict
 #my modules import
 from .Balance.Balance import Balance
 from .Orders.SellOrder import SellOrder
 from .Orders.BuyOrder import BuyOrder
+from .Orders.Balancer import Balancer
 from ...models.exceptions import BinanceServerError,BadRequestError
 
 log = logging.getLogger('app.binance')
@@ -33,12 +35,12 @@ class PortfolioManager:
         self.__Connection = Client(self.__APIKey,self.__APISecret)
         
 
-    def Parameters(self):
+    def Parameters(self) -> Dict:
 
         return {'exposition':self.__exposition,
                 'maxAssets':self.__maxAssets}
 
-    def operateInMarket(self,**kws):
+    def operateInMarket(self,**kws) -> Dict:
 
         '''
             Main Function --> checks every day if there are any news on the market
@@ -75,13 +77,13 @@ class PortfolioManager:
         log.info(orders)
         return trade
 
-    def __whatsNewOnMarket(self,*extraAssets):
+    def __whatsNewOnMarket(self,*extraAssets) -> None:
 
         # interact with tradingManager
         self.__symbolDict = self.__MarketManager.retrieveAllAvailableSymbols(self.__maxAssets,*extraAssets)
 
 
-    def __whatsMyBalance(self):
+    def __whatsMyBalance(self) -> Dict:
 
         #check account free amount, balance,etc
         assets = self.__whichAssetsInPortfolio()
@@ -92,7 +94,7 @@ class PortfolioManager:
         del myBalance
         self.__myBalance = balance
 
-    def __whichAssetsInPortfolio(self):
+    def __whichAssetsInPortfolio(self) -> Dict:
 
         #check server connection
         self.__checkConnection()
@@ -101,7 +103,7 @@ class PortfolioManager:
         balance = list(filter(lambda x: float(x["free"])>0 or float(x["locked"])>0,balance))
         return balance
 
-    def __whatAreMyOrdersStatus(self,persist = False,fallback = 5):
+    def __whatAreMyOrdersStatus(self,persist = False,fallback = 5) -> Dict:
 
         #verify that there are no pending orders,
         orders = self.__Connection.get_open_orders()
@@ -113,7 +115,7 @@ class PortfolioManager:
         return orders
         
 
-    def __placeBuyOrders(self,*symbols,**dfs):
+    def __placeBuyOrders(self,*symbols,**dfs) -> None:
 
         #ask RiskManager what amount to invest
         risks = self.__RiskManager.assesRisk(*symbols,**dfs)
@@ -123,23 +125,27 @@ class PortfolioManager:
         total = self.__myBalance
         free = float(total['liquid']['free'])
         total = float(total['totalBalance'])
-        #place buy order only on new assets
+        # Balance new assets
+        symbolsInfo = {'free':free,'symbols':{}}
         for symbol in symbols:
             amount = total*risks[symbol]['multiplier'] # in USDT
-            if free>float(self.__symbolDict[symbol]['minNotional']) and free > amount:
+            symbolsInfo['symbols'] = symbolsInfo['symbols'] | {symbol: self.__symbolDict[symbol] | {'amount':amount,'price':asks[symbol]['askPrice']}}
+        MyBalancer = Balancer(**symbolsInfo)
+        balanced = MyBalancer.balanceAmounts()
+        #place buy order only on new assets
+        for symbol in symbols:
+            order = BuyOrder(**{
+                "symbol":symbol,
+                "amount":amount,
+                "price":asks[symbol]['askPrice'],
+                "tokenFilters": self.__symbolDict[symbol]
+            })
+            order.send(self.__Connection)
+            log.info(order.returnOrder())
+            del order
+        del MyBalancer
 
-                order = BuyOrder(**{
-                    "symbol":symbol,
-                    "amount":amount,
-                    "price":asks[symbol]['askPrice'],
-                    "tokenFilters": self.__symbolDict[symbol]
-                })
-                order.send(self.__Connection)
-                del order
-                free -=amount
-        
-
-    def __placeSellOrders(self,*symbols):
+    def __placeSellOrders(self,*symbols) -> None:
 
         #place a sell order on *coinPairs
         bids = self.__MarketManager.retrieveBidAsk(*symbols)
@@ -153,30 +159,31 @@ class PortfolioManager:
                                     "tokenFilters": self.__symbolDict[symbol]
                                     })
                 order.send(self.__Connection)
+                log.info(order.returnOrder())
                 del order
 
-    def adjustParameters(self,**kws):
+    def adjustParameters(self,**kws) -> None:
 
         #adjust parameters to market
         pass
 
-    def emergencySellof(self,*symbols):
+    def emergencySellof(self,*symbols) -> None:
 
         self.__whatsMyBalance()
         if len(symbols)==0:
             symbols = [token['symbol'] for token in self.__myBalance['inTokens']]
         self.__placeSellOrders(*symbols)
 
-    def getMyBalance(self):
+    def getMyBalance(self) -> Dict:
 
         self.__whatsMyBalance()
         return self.__myBalance
 
-    def getTradingAssets(self):
+    def getTradingAssets(self) -> Dict:
 
         return self.__symbolDict
 
-    def addOrAvoidSymbols(self,*args):
+    def addOrAvoidSymbols(self,*args) -> None:
 
         '''
             Function that allows us to includ or exclude manually certain symbols to be traded.

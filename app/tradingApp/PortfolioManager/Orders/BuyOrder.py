@@ -6,6 +6,7 @@ class BuyOrder:
     def __init__(self,limit = True,**symbol):
        
         self.__formatOrder(**symbol)
+        self.__order = None
 
     def __formatOrder(self,**kws):
 
@@ -32,11 +33,11 @@ class BuyOrder:
 
     def returnOrder(self):
 
-        return self.__fullfilment
+        return {"fullfilment":self.__fullfilment,"order":self.__order}
 
     def send(self,client):
 
         try:
-            client.create_test_order(**self.__fullfilment)
+            self.__order = client.create_test_order(**self.__fullfilment)
         except Exception as e:
             raise BinanceServerError("Problem sending buy order: {}, with fullfilment {}".format(e,self.__fullfilment))

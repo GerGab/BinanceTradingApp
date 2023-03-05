@@ -19,9 +19,9 @@ def myBalance(**params):
 
 def sellOff(*params):
 
-    myPortfolioManager.emergencySellof(*params)
+    data = myPortfolioManager.emergencySellof(*params)
 
-    return 'ok'
+    return data
 
 def tradingAssets():
 
