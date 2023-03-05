@@ -31,7 +31,7 @@ def readyProbe() -> Response:
     return Response
 
 
-@serverScope.route('/start',methods = ['GET'])
+@serverScope.route('/start',methods = ['PUT'])
 @jwt_required()
 def start_Server() -> Response:
     turnSchedulerOn()
@@ -39,11 +39,11 @@ def start_Server() -> Response:
     Response.status_code = 200
     return Response
 
-@serverScope.route('/pause',methods = ['GET'])
+@serverScope.route('/pause',methods = ['PUT'])
 @jwt_required()
 def pause_Server() -> Response:
     turnSchedulerOff()
-    Response = __generate_response("success", "server pause awaiting orders")
+    Response = __generate_response("success", "server paused awaiting orders")
     Response.status_code = 200
     return Response
 

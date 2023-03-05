@@ -38,6 +38,6 @@ class BuyOrder:
     def send(self,client):
 
         try:
-            self.__order = client.create_test_order(**self.__fullfilment)
+            self.__order = client.create_test_order(**self.__fullfilment) # replace with client.create_order(**self.__fullfilment)
         except Exception as e:
             raise BinanceServerError("Problem sending buy order: {}, with fullfilment {}".format(e,self.__fullfilment))
