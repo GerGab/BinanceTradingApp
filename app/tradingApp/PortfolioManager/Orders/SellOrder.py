@@ -1,4 +1,5 @@
 from binance.enums import *
+from ....models.exceptions import BinanceServerError
 
 class SellOrder:
 
@@ -16,6 +17,7 @@ class SellOrder:
             "quantity":self.__formatQuantity(**{"quantity":kws['quantity'],"tokenFilters":kws['tokenFilters']}),
             "price":self.__formatPrice(**{"price":kws['price'],"tokenFilters":kws['tokenFilters']})
         }
+        print(self.__fullfilment)
 
     def __formatPrice(self,**kws):
         
@@ -38,4 +40,4 @@ class SellOrder:
         try:
             order = client.create_test_order(**self.__fullfilment)#client.create_order(self.__fullfilment)
         except Exception as e:
-            raise Exception("Problem sending sell order: {}, with fullfilment {}".format(e,self.__fullfilment))
+            raise BinanceServerError("Problem sending sell order: {}, with fullfilment {}".format(e,self.__fullfilment))

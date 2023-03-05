@@ -1,4 +1,5 @@
 from binance.enums import *
+from ....models.exceptions import BinanceServerError
 
 class BuyOrder:
 
@@ -36,6 +37,6 @@ class BuyOrder:
     def send(self,client):
 
         try:
-            client.create_test_order(**self.__fullfilment)#client.create_order(self.__fullfilment)
+            client.create_test_order(**self.__fullfilment)
         except Exception as e:
-            raise Exception("Problem sending buy order: {}, with fullfilment {}".format(e,self.__fullfilment))
+            raise BinanceServerError("Problem sending buy order: {}, with fullfilment {}".format(e,self.__fullfilment))
